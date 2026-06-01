@@ -4,7 +4,6 @@ from math import pi
 import subprocess
 import os
 import joblib
-import oracledb
 import boto3
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -12,7 +11,7 @@ import torch
 import cv2
 import shutil
 import numpy as np
-
+import oracledb
 
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.cluster import KMeans, DBSCAN
@@ -44,7 +43,7 @@ if 'dados' not in st.session_state:
 # Função global para mensageria AWS
 def enviar_alerta_aws(mensagem, assunto="Alerta FarmTech"):
     try:
-        sns_client = boto3.client('sns', region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+        sns_client = boto3.client('sns', region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-2"))
         TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")
         
         response = sns_client.publish(
@@ -153,21 +152,32 @@ elif menu == "3. Monitoramento IoT e BD (F2/F3)":
     with aba1:
         st.write("Gestão e Consulta ao banco relacional estruturado na Fase 3.")
         
+        # 1. Cria um estado na memória para guardar as credenciais de forma dinâmica
+        if 'oracle_creds' not in st.session_state:
+            st.session_state.oracle_creds = {
+                'user': os.getenv("DB_USER", ""),
+                'pass': os.getenv("DB_PASS", ""),
+                'host': os.getenv("DB_HOST", ""),
+                'port': os.getenv("DB_PORT", "1521"),
+                'service': os.getenv("DB_SERVICE", "")
+            }
+
         # =========================================================
-        # NOVA SESSÃO: ÁREA DO ADMINISTRADOR (CRIAR E IMPORTAR)
+        # SESSÃO: ÁREA DO ADMINISTRADOR
         # =========================================================
         with st.expander("🛠️ Acesso Administrativo: Criar Tabela e Importar CSV"):
-            st.write("Insira credenciais com permissões de escrita (DDL/DML) para recriar a tabela `DADO_AGRICOLA` e popular com os dados históricos.")
+            st.write("Insira as credenciais para recriar a tabela `DADO_AGRICOLA` e popular com os dados históricos.")
             
             with st.form("form_admin_oracle"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    admin_user = st.text_input("Usuário do Banco (Admin):")
-                    admin_host = st.text_input("Host (ex: oracle.fiap.com.br):")
-                    admin_service = st.text_input("Service Name (ex: ORCL):")
+                    # Agora os campos puxam da memória (se o .env funcionar, já vem preenchido)
+                    admin_user = st.text_input("Usuário do Banco:", value=st.session_state.oracle_creds['user'])
+                    admin_host = st.text_input("Host (ex: oracle.fiap.com.br):", value=st.session_state.oracle_creds['host'])
+                    admin_service = st.text_input("Service Name (ex: ORCL):", value=st.session_state.oracle_creds['service'])
                 with col2:
-                    admin_pass = st.text_input("Senha:", type="password")
-                    admin_port = st.text_input("Porta:", value="1521")
+                    admin_pass = st.text_input("Senha:", value=st.session_state.oracle_creds['pass'], type="password")
+                    admin_port = st.text_input("Porta:", value=st.session_state.oracle_creds['port'])
                     
                 submit_import = st.form_submit_button("Criar Tabela e Injetar Dados")
                 
@@ -177,25 +187,20 @@ elif menu == "3. Monitoramento IoT e BD (F2/F3)":
                     else:
                         with st.spinner("Conectando ao Oracle e processando os dados..."):
                             try:
-                                # 1. Lê o CSV da pasta data
                                 caminho_csv = os.path.join('data', 'dados_historicos_2024.csv')
                                 df_import = pd.read_csv(caminho_csv)
-                                
-                                # Garante que os valores em branco não quebrem o banco de dados (troca NaN por None)
                                 df_import = df_import.where(pd.notnull(df_import), None)
                                 
-                                # 2. Conecta ao Oracle com as credenciais preenchidas
                                 conn_admin = oracledb.connect(
                                     user=admin_user, password=admin_pass, 
                                     host=admin_host, port=admin_port, service_name=admin_service
                                 )
                                 cursor = conn_admin.cursor()
                                 
-                                # 3. Recria a tabela DADO_AGRICOLA (Apaga se já existir)
                                 try:
                                     cursor.execute("DROP TABLE DADO_AGRICOLA")
                                 except oracledb.DatabaseError:
-                                    pass # Se a tabela não existia antes, apenas segue em frente
+                                    pass 
                                     
                                 sql_create = """
                                 CREATE TABLE DADO_AGRICOLA (
@@ -215,61 +220,68 @@ elif menu == "3. Monitoramento IoT e BD (F2/F3)":
                                 """
                                 cursor.execute(sql_create)
                                 
-                                # 4. Transforma o DataFrame numa lista de tuplas para injeção rápida
                                 dados_tuplas = [tuple(x) for x in df_import.values]
                                 
-                                # 5. Insere tudo na nova tabela DADO_AGRICOLA
                                 sql_insert = """
                                 INSERT INTO DADO_AGRICOLA (
                                     TIMESTAMP, UMIDADE_DHT, LDR_VALOR, N_PRESENTE, P_PRESENTE, K_PRESENTE, BLOQUEIO_EXTERNO, RELAY_STATUS, UMIDADE_BAIXA, NPK_OK, PH_OK
                                 ) VALUES (:2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12)
                                 """
+
                                 cursor.executemany(sql_insert, dados_tuplas)
                                 conn_admin.commit()
-                                
-                                st.success(f"Sucesso! A tabela DADOS_AGRICOLAS foi criada e {len(df_import)} linhas foram importadas.")
                                 conn_admin.close()
                                 
+                                # Salvamos as credenciais que deram certo na "memória" do sistema
+                                st.session_state.oracle_creds = {
+                                    'user': admin_user,
+                                    'pass': admin_pass,
+                                    'host': admin_host,
+                                    'port': admin_port,
+                                    'service': admin_service
+                                }
+                                
+                                st.success(f"Sucesso! {len(df_import)} linhas importadas.")
+                                
                             except FileNotFoundError:
-                                st.error(f"O arquivo '{caminho_csv}' não foi encontrado.")
+                                st.error(f"O arquivo CSV não foi encontrado.")
                             except Exception as e:
                                 st.error(f"Erro durante a operação no banco: {e}")
 
         # =========================================================
-        # SESSÃO ORIGINAL: LEITURA DOS DADOS
+        # SESSÃO DE LEITURA (Agora conectada à memória)
         # =========================================================
         st.divider()
         st.subheader("Visualização dos Dados (Leitura)")
         try:
-            # Captura credenciais padrão de leitura do .env
-            db_user = os.getenv("DB_USER")
-            db_pass = os.getenv("DB_PASS")
-            db_host = os.getenv("DB_HOST")
-            db_port = os.getenv("DB_PORT", "1521") 
-            db_service = os.getenv("DB_SERVICE")
-            
-            conn = oracledb.connect(
-                user=db_user, password=db_pass, host=db_host, port=db_port, service_name=db_service
-            )
-            
-            # Ajustei a Query para ler da tabela nova DADOS_AGRICOLAS que acabamos de criar
-            query = """
-            SELECT 
-                TIMESTAMP, UMIDADE_DHT, LDR_VALOR, N_PRESENTE, P_PRESENTE, K_PRESENTE, BLOQUEIO_EXTERNO, RELAY_STATUS, UMIDADE_BAIXA, NPK_OK, PH_OK 
-            FROM DADO_AGRICOLA 
-            ORDER BY id DESC 
-            FETCH FIRST 50 ROWS ONLY
-            """
-            
-            df_oracle = pd.read_sql(query, conn)
-            conn.close()
-            
-            st.dataframe(df_oracle, width='stretch')
-            
+        # Puxa as credenciais direto da memória (st.session_state)
+            db_c = st.session_state.oracle_creds
+
+        # Se não houver usuário, pede para preencher em vez de estourar erro
+            if not db_c['user'] or not db_c['pass']:
+                st.info("👈 Por favor, insira suas credenciais na aba administrativa acima para visualizar os dados.")
+            else:
+                conn = oracledb.connect(
+                    user=db_c['user'], password=db_c['pass'], 
+                    host=db_c['host'], port=db_c['port'], service_name=db_c['service']
+                )
+                
+                query = """
+                SELECT 
+                    TIMESTAMP, UMIDADE_DHT, LDR_VALOR, N_PRESENTE, P_PRESENTE, K_PRESENTE, BLOQUEIO_EXTERNO, RELAY_STATUS, UMIDADE_BAIXA, NPK_OK, PH_OK 
+                FROM DADO_AGRICOLA 
+                ORDER BY id DESC 
+                FETCH FIRST 50 ROWS ONLY
+                """
+                
+                df_oracle = pd.read_sql(query, conn)
+                conn.close()
+                
+                st.dataframe(df_oracle, width='stretch')
+
         except Exception as e:
-            st.warning("Não há dados para exibir ou credenciais do .env ausentes.")
-            st.info("Caso seja o primeiro acesso, utilize a área administrativa acima para criar a tabela.")
-            # Retirado o erro feio da tela, deixando mais limpo para o usuário
+            st.warning("Não foi possível carregar os dados. Verifique as credenciais ou se a tabela já foi criada.")
+            st.info(f"Detalhe técnico: {e}")
             
     with aba2:
         st.write("Leitura dos logs físicos e dados históricos do hardware IoT.")
@@ -446,6 +458,13 @@ elif menu == "5. Visão Computacional (F6)":
     * 🚙 **Segurança Patrimonial:** Controle de acesso inteligente (Alvo: *Nissan Kicks*).
     """)
     
+    # === OTIMIZAÇÃO: Cache do Modelo ===
+    # O Streamlit guarda o modelo na memória para não o carregar 2 vezes
+    @st.cache_resource(show_spinner=False)
+    def carregar_modelo_yolo():
+        # Alterado force_reload para False para não baixar da internet a cada clique
+        return torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_farmtech.pt', force_reload=False)
+    
     aba_inferencia, aba_metricas = st.tabs(["🔍 Análise de Imagem (PoC)", "📈 Métricas do Modelo (60 Épocas)"])
     
     # --- ABA DE INFERÊNCIA ---
@@ -455,17 +474,19 @@ elif menu == "5. Visão Computacional (F6)":
         img_upload = st.file_uploader("Envie a imagem (jpg, png, jpeg)", type=["jpg", "png", "jpeg"])
         
         if img_upload:
-            # Exibe a imagem original enviada
-            imagem_pil = Image.open(img_upload)
-            st.image(imagem_pil, caption="Câmera / Imagem Original", width='stretch')
+            # === CORREÇÃO: Forçar conversão para RGB ===
+            # Evita o erro de canais extras em imagens PNG (RGBA -> RGB)
+            imagem_pil = Image.open(img_upload).convert('RGB')
+            
+            st.image(imagem_pil, caption="Câmera / Imagem Original", use_container_width=True)
             
             if st.button("Executar Diagnóstico YOLOv5"):
-                with st.spinner("Carregando pesos da Rede Neural e processando texturas..."):
+                with st.spinner("Processando a imagem através da Rede Neural..."):
                     try:
-                        # Carrega o modelo treinado com as suas classes customizadas
-                        modelo_yolov5 = torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_farmtech.pt', force_reload=True)
+                        # Puxa o modelo diretamente da memória (muito mais rápido)
+                        modelo_yolov5 = carregar_modelo_yolo()
                         
-                        # Converte a imagem do Streamlit para o formato do OpenCV
+                        # Converte a imagem para o formato do OpenCV em segurança
                         img_cv = cv2.cvtColor(np.array(imagem_pil), cv2.COLOR_RGB2BGR)
                         
                         # Inferência
@@ -477,56 +498,50 @@ elif menu == "5. Visão Computacional (F6)":
                         
                         st.divider()
                         st.subheader("Resultado da Detecção")
-                        st.image(img_processada, caption="Análise Concluída", width='stretch')
+                        st.image(img_processada, caption="Análise Concluída", use_container_width=True)
                         
-                        # Extrai a tabela de objetos detectados
                         df_deteccoes = resultados.pandas().xyxy[0]
                         
                         if len(df_deteccoes) > 0:
                             st.success(f"✅ Análise concluída. {len(df_deteccoes)} objeto(s) alvo(s) identificado(s).")
                             st.dataframe(df_deteccoes[['name', 'confidence']])
                             
-                            # Logica de regras de negócio e gatilhos AWS customizados para as duas verticais
                             classes_detectadas = df_deteccoes['name'].str.lower().tolist()
                             mensagens_aws = []
                             
-                            # Regra 1: Vertical de Saúde Animal
-                            # Nota: Adicionadas variações genéricas caso o modelo tenha retornado nomes padrão
                             if any(c in ['shih tzu', 'shihtzu', 'dog', 'cachorro'] for c in classes_detectadas):
-                                st.info("🐶 **Suporte Decisão Clínica:** Paciente (Shih Tzu) detectado. Padrão de pelagem analisado. Monitoramento pós-operatório ativo.")
-                                mensagens_aws.append("Saúde Animal: Monitoramento de Shih Tzu ativado no painel clínico veterinário.")
+                                st.info("🐶 **Suporte Decisão Clínica:** Paciente (Shih Tzu) detectado.")
+                                mensagens_aws.append("Saúde Animal: Monitoramento ativado no painel clínico.")
                                 
-                            # Regra 2: Vertical de Segurança Patrimonial
                             if any(c in ['nissan kicks', 'kicks', 'car', 'carro', 'veiculo'] for c in classes_detectadas):
-                                st.warning("🚙 **Controle de Acesso:** Veículo alvo (Nissan Kicks) reconhecido com sucesso. Validação de linhas de design confirmada.")
-                                mensagens_aws.append("Segurança: Veículo autorizado (Nissan Kicks) identificado. Acesso liberado/registrado.")
+                                st.warning("🚙 **Controle de Acesso:** Veículo alvo (Nissan Kicks) reconhecido com sucesso.")
+                                mensagens_aws.append("Segurança: Acesso liberado/registrado.")
                                 
-                            # Disparo do serviço SNS na nuvem
                             if mensagens_aws:
                                 msg_final = " | ".join(mensagens_aws)
                                 enviar_alerta_aws(f"ALERTA FARMTECH V.A.: {msg_final}")
-                                st.toast("Notificação de evento enviada via AWS SNS ao sistema central.")
+                                st.toast("Notificação de evento enviada via AWS SNS.")
                                 
                         else:
-                            st.warning("Nenhum objeto alvo das verticais (Shih Tzu ou Nissan Kicks) foi detectado na imagem.")
+                            st.warning("Nenhum objeto alvo das verticais foi detectado na imagem.")
                             
                     except Exception as e:
                         st.error(f"Erro ao processar o modelo YOLOv5: {e}")
-                        st.info("Verifique se o seu modelo 'yolov5_farmtech.pt' com as classes treinadas está na pasta.")
+                        st.info("Consulte o terminal do VS Code para ver os detalhes do erro.")
 
-    # --- ABA DE MÉTRICAS (Estatísticas do Treino no Colab) ---
+    # --- ABA DE MÉTRICAS ---
     with aba_metricas:
-        st.write("Desempenho do modelo treinado na nuvem demonstrando o 'Stress Test' nas texturas.")
-        
+        st.write("Desempenho do modelo treinado na nuvem.")
         col1, col2 = st.columns(2)
         try:
             with col1:
-                st.image("data/confusion_matrix.png", caption="Matriz de Confusão", width='stretch')
+                st.image("data/confusion_matrix.png", caption="Matriz de Confusão", use_container_width=True)
             with col2:
-                st.image("data/F1_curve.png", caption="Curva F1-Score", width='stretch')
+                st.image("data/F1_curve.png", caption="Curva F1-Score", use_container_width=True)
         except FileNotFoundError:
-            st.info("Para exibir as métricas, certifique-se de salvar as imagens 'confusion_matrix.png' e 'F1_curve.png' do Colab na pasta 'data/'.")
+            st.info("Para exibir as métricas, certifique-se de que salvou os ficheiros na pasta 'data/'.")
 
+            
 # ---------------------------------------------------------
 # MÓDULO 6: CONFIGURAÇÕES AWS (FASE 5)
 # ---------------------------------------------------------
@@ -534,9 +549,10 @@ elif menu == "6. Configurações AWS (F5)":
     st.header("☁️ Gestão de Mensageria Cloud")
     st.write("Disparo de notificações SNS para a equipe de campo.")
     
-    msg_teste = st.text_area("Mensagem:", "Alerta de teste do sistema de consolidação FarmTech.")
+    txt = "Alerta de teste do sistema de consolidação FarmTech."
+    msg_teste = st.text_area("Mensagem:", txt)
     if st.button("Testar Disparo SNS"):
-        sucesso, log = enviar_alerta_aws(msg_teste)
+        sucesso, log = enviar_alerta_aws(txt)
         if sucesso:
             st.success(f"Mensagem enviada com sucesso! ID: {log}")
         else:
