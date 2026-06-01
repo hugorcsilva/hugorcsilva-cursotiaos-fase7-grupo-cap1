@@ -19,6 +19,7 @@ boto3
 torch
 torchvision
 opencv-python-headless
+ultralytics
 tqdm
 pyyaml
 requests
