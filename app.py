@@ -44,8 +44,8 @@ if 'dados' not in st.session_state:
 # Função global para mensageria AWS
 def enviar_alerta_aws(mensagem, assunto="Alerta FarmTech"):
     try:
-        sns_client = boto3.client('sns', region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
-        TOPIC_ARN = os.environ.get("SNS_TOPIC_ARN")
+        sns_client = boto3.client('sns', region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+        TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")
         
         response = sns_client.publish(
             TopicArn=TOPIC_ARN, 
@@ -242,11 +242,11 @@ elif menu == "3. Monitoramento IoT e BD (F2/F3)":
         st.subheader("Visualização dos Dados (Leitura)")
         try:
             # Captura credenciais padrão de leitura do .env
-            db_user = os.environ.get("DB_USER")
-            db_pass = os.environ.get("DB_PASS")
-            db_host = os.environ.get("DB_HOST")
-            db_port = os.environ.get("DB_PORT", "1521") 
-            db_service = os.environ.get("DB_SERVICE")
+            db_user = os.getenv("DB_USER")
+            db_pass = os.getenv("DB_PASS")
+            db_host = os.getenv("DB_HOST")
+            db_port = os.getenv("DB_PORT", "1521") 
+            db_service = os.getenv("DB_SERVICE")
             
             conn = oracledb.connect(
                 user=db_user, password=db_pass, host=db_host, port=db_port, service_name=db_service
