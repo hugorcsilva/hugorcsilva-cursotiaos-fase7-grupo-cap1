@@ -121,7 +121,7 @@ O sistema possui gatilhos inteligentes configurados para disparar ações de con
 ## 🎥 Pitch e Apresentação do Sistema
 Vídeo demonstrativo (até 10 minutos) comprovando o funcionamento de todas as Fases e da integração em contêiner:
 
-👉 `https://youtu.be/aXUJDpewup4`
+👉 [Link para o Vídeo no YouTube (Não Listado)](https://youtu.be/aXUJDpewup4)
 
 ## 📋 Licença
 
