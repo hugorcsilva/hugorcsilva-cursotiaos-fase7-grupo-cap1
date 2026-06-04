@@ -103,7 +103,6 @@ if menu == "1. Cadastro e Áreas (F1)":
             else:
                 area = pi * (raio ** 2)
                 
-            # CORREÇÃO: Cadastro em linha única, passando apenas a Cultura e a Área final
             nova_linha = pd.DataFrame([{'cultura': cultura.lower(), 'area_m2': area}])
             
             # Adiciona os dados e salva o CSV
@@ -400,7 +399,6 @@ elif menu == "4. Predição de Safra ML (F4)":
             
             st.subheader("2. Matriz de Correlação")
             fig2, ax2 = plt.subplots(figsize=(8, 6))
-            # Garante que a correlação só pegue colunas numéricas
             corr = df_crop.select_dtypes(include=['float64', 'int64']).corr()
             sns.heatmap(corr, annot=True, cmap='YlGnBu', fmt=".2f", ax=ax2)
             ax2.set_title('Correlação de Variáveis')
@@ -410,7 +408,6 @@ elif menu == "4. Predição de Safra ML (F4)":
             with st.spinner("Calculando clusters dinamicamente..."):
                 df_unsup = df_crop.copy()
                 le = LabelEncoder()
-                # Tratamento para evitar erro caso a coluna Crop não exista
                 if 'Crop' in df_unsup.columns:
                     df_unsup['Crop_encoded'] = le.fit_transform(df_unsup['Crop'])
                     X_cluster = df_unsup.drop(['Crop', 'Yield'], axis=1, errors='ignore')
@@ -420,7 +417,6 @@ elif menu == "4. Predição de Safra ML (F4)":
                 scaler = StandardScaler()
                 X_scaled = scaler.fit_transform(X_cluster)
                 
-                # Executa o PCA e KMeans que vocês programaram
                 kmeans = KMeans(n_clusters=3, random_state=42) # Usando k=3 para agilizar no painel
                 df_unsup['Cluster_KMeans'] = kmeans.fit_predict(X_scaled)
                 
@@ -474,8 +470,6 @@ elif menu == "5. Visão Computacional (F6)":
         img_upload = st.file_uploader("Envie a imagem (jpg, png, jpeg)", type=["jpg", "png", "jpeg"])
         
         if img_upload:
-            # === CORREÇÃO: Forçar conversão para RGB ===
-            # Evita o erro de canais extras em imagens PNG (RGBA -> RGB)
             imagem_pil = Image.open(img_upload).convert('RGB')
             
             st.image(imagem_pil, caption="Câmera / Imagem Original", use_container_width=True)
@@ -483,16 +477,12 @@ elif menu == "5. Visão Computacional (F6)":
             if st.button("Executar Diagnóstico YOLOv5"):
                 with st.spinner("Processando a imagem através da Rede Neural..."):
                     try:
-                        # Puxa o modelo diretamente da memória (muito mais rápido)
                         modelo_yolov5 = carregar_modelo_yolo()
                         
-                        # Converte a imagem para o formato do OpenCV em segurança
                         img_cv = cv2.cvtColor(np.array(imagem_pil), cv2.COLOR_RGB2BGR)
                         
-                        # Inferência
                         resultados = modelo_yolov5(img_cv)
                         
-                        # Renderiza as bounding boxes
                         resultados.render()
                         img_processada = cv2.cvtColor(resultados.ims[0], cv2.COLOR_BGR2RGB)
                         
