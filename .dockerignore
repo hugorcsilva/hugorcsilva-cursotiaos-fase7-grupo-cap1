@@ -1,0 +1,13 @@
+# Pastas de ambiente virtual
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+
+# Arquivo de senhas (o Docker injetará de outra forma)
+.env
+
+# Arquivos do Git
+.git/
+.gitignore

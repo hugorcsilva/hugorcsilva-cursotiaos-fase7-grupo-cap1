@@ -2,7 +2,7 @@
 import joblib
 import numpy as np
 
-MODEL_PATH = "models/regression_model.joblib"
+MODEL_PATH = "regression_model.joblib"
 
 def load_model():
     return joblib.load(MODEL_PATH)

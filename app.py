@@ -463,7 +463,7 @@ elif menu == "5. Visão Computacional (F6)":
     @st.cache_resource(show_spinner=False)
     def carregar_modelo_yolo():
         # Alterado force_reload para False para não baixar da internet a cada clique
-        return torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_farmtech.pt', force_reload=False)
+        return torch.hub.load('ultralytics/yolov5', 'custom', path='yolov5_farmtech.pt', force_reload=False, trust_repo=True)
     
     aba_inferencia, aba_metricas = st.tabs(["🔍 Análise de Imagem (PoC)", "📈 Métricas do Modelo (60 Épocas)"])
     

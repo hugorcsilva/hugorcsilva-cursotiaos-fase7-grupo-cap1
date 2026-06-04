@@ -1,6 +1,0 @@
-#!/Users/hugorodriguescarvalhosilva/Documents/ciencia_da_programacao/fiap/fase_07/outro_fase_07/fase_07/bin/python3.14
-import sys
-from pip._internal.cli.main import main
-if __name__ == '__main__':
-    sys.argv[0] = sys.argv[0].removesuffix('.exe')
-    sys.exit(main())
