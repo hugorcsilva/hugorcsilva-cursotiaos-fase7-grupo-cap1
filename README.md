@@ -44,7 +44,7 @@ A evolução iterativa deste ecossistema pode ser rastreada através das entrega
 * **Fase 02 (IoT ESP32 e Python):** [fase2-grupo9-esp32](https://github.com/agentesiafiap/cursotiaos-fase2-grupo9-esp32) | [fase2-grupo6-python](https://github.com/agentesiafiap/cursotiaos-fase2-grupo6-python)
 * **Fase 03 (Oracle Database):** [fase3-grupo16-oracle](https://github.com/agentesiafiap/cursotiaos-fase3-grupo16-oracle)
 * **Fase 04 (Machine Learning e EDA):** [fase4-grupo43-previsao](https://github.com/agentesiafiap/cursotiaos-fase4-grupo43-previsao)
-* **Fase 05 (Cloud AWS & Mensageria):** [fase5-grupo19-ml-aws](https://github.com/agentesiafiap/cursotiaos-fase5-grupo19-ml-aws)
+* **Fase 05 (Cloud AWS):** [fase5-grupo19-ml-aws](https://github.com/agentesiafiap/cursotiaos-fase5-grupo19-ml-aws)
 * **Fase 06 (Visão Computacional YOLO):** [fase6-grupo21-yolo-cnn](https://github.com/agentesiafiap/cursotiaos-fase6-grupo21-yolo-cnn)
 
 ---
@@ -121,7 +121,7 @@ O sistema possui gatilhos inteligentes configurados para disparar ações de con
 ## 🎥 Pitch e Apresentação do Sistema
 Vídeo demonstrativo (até 10 minutos) comprovando o funcionamento de todas as Fases e da integração em contêiner:
 
-👉 [Inserir Link do YouTube]
+👉 `https://youtu.be/aXUJDpewup4`
 
 ## 📋 Licença
 
